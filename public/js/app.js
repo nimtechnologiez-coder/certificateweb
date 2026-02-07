@@ -1,6 +1,6 @@
 const regForm = document.getElementById('registrationForm');
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 if (regForm) {
     regForm.addEventListener('submit', async (e) => {
