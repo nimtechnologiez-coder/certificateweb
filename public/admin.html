@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Webinar Hub</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        .admin-section {
+            padding: 4rem 5%;
+        }
+
+        .data-card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-top: 2rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            color: #e2e8f0;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 1px solid var(--glass-border);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-sent {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .status-pending {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .btn.small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .logs-box {
+            margin-top: 2rem;
+            background: #000;
+            padding: 1rem;
+            border-radius: 12px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glass-bg"></div>
+
+    <nav>
+        <div class="logo">Webinar<span>Admin</span></div>
+        <a href="index.html" class="nav-links">View Site</a>
+    </nav>
+
+    <main class="admin-section">
+        <div class="admin-header">
+            <div class="section-header" style="text-align: left; margin: 0;">
+                <h2 style="font-size: 2.5rem;">Student <span>Database</span></h2>
+                <p>Manage participants and issue certificates.</p>
+            </div>
+            <button id="btnIssueAll" class="btn primary">Send All Certificates</button>
+        </div>
+
+        <div class="data-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Student ID</th>
+                        <th>Registered At</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="studentTableBody">
+                    <tr>
+                        <td colspan="6" style="text-align:center;">Loading participants...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="logsBox" class="logs-box"></div>
+    </main>
+
+    <script src="js/ui-utils.js"></script>
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        const tbody = document.getElementById('studentTableBody');
+        const btnIssue = document.getElementById('btnIssueAll');
+        const logsBox = document.getElementById('logsBox');
+
+        async function fetchStudents() {
+            try {
+                const res = await fetch(`${API_URL}/admin/students`);
+                const data = await res.json();
+                if (data.success) {
+                    tbody.innerHTML = data.students.map(s => `
+                        <tr>
+                            <td>${s.name}</td>
+                            <td>${s.email}</td>
+                            <td>${s.student_id || 'N/A'}</td>
+                            <td>${new Date(s.registered_at).toLocaleDateString()}</td>
+                            <td>
+                                <span class="status-badge ${s.certificate_sent ? 'status-sent' : 'status-pending'}">
+                                    ${s.certificate_sent ? 'Sent' : 'Pending'}
+                                </span>
+                            </td>
+                            <td>
+                                <button onclick="deleteStudent(${s.id})" class="btn small" style="background: rgba(248, 113, 113, 0.2); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.2);">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#f87171;">Failed to load data.</td></tr>';
+            }
+        }
+
+        async function deleteStudent(id) {
+            const confirmed = await showModal({
+                title: 'Delete Student?',
+                message: 'Are you sure you want to permanently delete this student record? This action cannot be undone.',
+                type: 'warning',
+                confirmText: 'Yes, Delete',
+                cancelText: 'Cancel'
+            });
+
+            if (!confirmed) return;
+
+            try {
+                const res = await fetch(`${API_URL}/admin/students/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+
+                showModal({
+                    title: data.success ? 'Deleted!' : 'Error',
+                    message: data.message,
+                    type: data.success ? 'success' : 'warning'
+                });
+
+                if (data.success) {
+                    fetchStudents();
+                }
+            } catch (err) {
+                showModal({
+                    title: 'Connection Error',
+                    message: 'Failed to communicate with the server.',
+                    type: 'warning'
+                });
+            }
+        }
+
+        btnIssue.addEventListener('click', async () => {
+            const confirmed = await showModal({
+                title: 'Issue All Certificates?',
+                message: 'This will send certificates to ALL pending students in the database. Proceed?',
+                type: 'info',
+                confirmText: 'Yes, Send All',
+                cancelText: 'Cancel'
+            });
+
+            if (!confirmed) return;
+
+            try {
+                btnIssue.disabled = true;
+                btnIssue.textContent = 'Processing Bulk...';
+                logsBox.style.display = 'block';
+                logsBox.innerHTML = '<div>> Starting certificate issuance engine...</div>';
+
+                const res = await fetch(`${API_URL}/admin/issue-all`, { method: 'POST' });
+                const result = await res.json();
+
+                if (result.success && result.results) {
+                    result.results.forEach(r => {
+                        const log = document.createElement('div');
+                        log.style.color = r.status === 'fulfilled' ? '#4ade80' : '#f87171';
+                        log.textContent = r.status === 'fulfilled' ? `> ✅ Successfully sent to ${r.value}` : `> ❌ Error: ${r.reason}`;
+                        logsBox.appendChild(log);
+                        logsBox.scrollTop = logsBox.scrollHeight;
+                    });
+                    await fetchStudents(); // Refresh table
+                }
+
+                showModal({
+                    title: result.success ? 'Process Complete' : 'Error',
+                    message: result.message,
+                    type: result.success ? 'success' : 'warning'
+                });
+            } catch (err) {
+                showModal({
+                    title: 'Connection Lost',
+                    message: 'Server connection lost during processing.',
+                    type: 'warning'
+                });
+            } finally {
+                btnIssue.disabled = false;
+                btnIssue.textContent = 'Send All Certificates';
+            }
+        });
+
+        fetchStudents();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.png
+*.log
+debug-output-2.txt
+server/database.sqlite
